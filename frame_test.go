@@ -1,8 +1,10 @@
 package frame
 
 import (
+	"bytes"
 	"fmt"
 	cv "github.com/glycerine/goconvey/convey"
+	"io"
 	"testing"
 	"time"
 )
@@ -177,9 +179,57 @@ i=-4611686018427387904  top 21 bits: -524288
 i=-9223372036854775808  top 21 bits: -1048576
 */
 func signed_right_shift_demo() {
-	b := -1 << 43
-	e := -1
-	for i := b; i < e; i = i << 1 {
+	b := int64(-1 << 43)
+	e := int64(-1)
+	for i := int64(b); i < e; i = i << 1 {
 		fmt.Printf("i=%v  top 21 bits: %v\n", i, int32(i>>43))
 	}
+}
+
+func Test200FrameReader(t *testing.T) {
+	cv.Convey("Given that consumers of TMFRAME frames would like to peek ahead 1-2 words to discover the length of the next message in a stream, so they can allocate message buffers, the FrameReader should wrap and buffer an io.Reader to provide PeekNextFrame.", t, func() {
+
+		tm := time.Now()
+		//max := 1048575
+		var err error
+		//var by []byte
+
+		P("FrameReader.ReadNextFrame() should return io.EOF or empty []byte / stream at end of file")
+		var empty bytes.Buffer
+		fr := NewFrameReader(&empty, 64*1024)
+		nBytes, err := fr.PeekNextFrame()
+		cv.So(nBytes, cv.ShouldEqual, 0)
+		cv.So(err, cv.ShouldEqual, io.EOF)
+		//		by, err = fr.ReadNextFrame(empty)
+		//		cv.So(len(by), cv.ShouldEqual, 0)
+		//		cv.So(err, cv.ShouldEqual, io.EOF)
+
+		P("FrameReader.PeekNextFrame() should return the size without consuming the Frame")
+		f8, err := NewFrame(tm, EvZero, 0, 0, nil)
+		panicOn(err)
+		b8, err := f8.Marshal(nil)
+		panicOn(err)
+		buf8 := bytes.NewBuffer(b8)
+		fr = NewFrameReader(buf8, 64*1024)
+		nBytes, err = fr.PeekNextFrame()
+		cv.So(nBytes, cv.ShouldEqual, 8)
+		cv.So(err, cv.ShouldEqual, nil)
+
+		/*
+			f16, err := NewFrame(tm, EvOneFloat64, 0, 0, nil)
+			panicOn(err)
+			b16 := bytes.NewBuffer(f16)
+			cv.So(PeekNextFrame(b16), cv.ShouldEqual, 16)
+
+			f24, err := NewFrame(tm, EvTwo64, 0, 0, nil)
+			panicOn(err)
+			b24 := bytes.NewBuffer(f24)
+			cv.So(PeekNextFrame(b24), cv.ShouldEqual, 24)
+
+			f36, err := NewFrame(tm, EvMsgpKafka, 0, 0, make([]byte, 20))
+			panicOn(err)
+			b36 := bytes.NewBuffer(f36)
+			cv.So(PeekNextFrame(b36), cv.ShouldEqual, 36)
+		*/
+	})
 }
